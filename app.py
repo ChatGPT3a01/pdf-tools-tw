@@ -275,17 +275,19 @@ def compress_pdf(input_bytes: bytes, quality: str, target_size_mb: float = 0) ->
         # 如果設定了目標大小，嘗試不同的 DPI 找到最佳壓縮
         if target_size_mb > 0:
             target_bytes = int(target_size_mb * 1024 * 1024)
-            best_result = input_bytes
 
-            # 嘗試不同的 DPI 值
-            for dpi in [150, 100, 72, 50, 36, 24]:
-                for img_q in [60, 40, 20, 10]:
-                    compressed = run_gs_compress(dpi, img_q)
-                    if len(compressed) <= target_bytes:
-                        best_result = compressed
-                        break
-                    elif len(compressed) < len(best_result):
-                        best_result = compressed
+            # 快速嘗試幾個關鍵的 DPI 值
+            test_params = [
+                (72, 50),   # 先試標準壓縮
+                (50, 30),   # 再試更高壓縮
+                (36, 20),   # 最後試極限壓縮
+            ]
+
+            best_result = input_bytes
+            for dpi, img_q in test_params:
+                compressed = run_gs_compress(dpi, img_q)
+                if len(compressed) < len(best_result):
+                    best_result = compressed
                 if len(best_result) <= target_bytes:
                     break
 
