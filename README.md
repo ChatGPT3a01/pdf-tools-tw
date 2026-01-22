@@ -4,7 +4,7 @@
 
 ### 化繁為簡凝雲墨，拆骨離魂鑄新篇
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://pdf-tools-tw.streamlit.app)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://pdftools-tw.streamlit.app)
 [![GitHub stars](https://img.shields.io/github/stars/ChatGPT3a01/pdf-tools-tw?style=social)](https://github.com/ChatGPT3a01/pdf-tools-tw)
 
 <img src="assets/splash.png" alt="PDF 工具箱" width="700">
@@ -13,7 +13,7 @@
 
 ## 🚀 立即開始使用
 
-### 👉 [https://pdf-tools-tw.streamlit.app](https://pdf-tools-tw.streamlit.app) 👈
+### 👉 [https://pdftools-tw.streamlit.app](https://pdftools-tw.streamlit.app) 👈
 
 **👆 點擊上方連結，免安裝直接使用！**
 
@@ -74,7 +74,7 @@
 
 點擊下方按鈕進入工具
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://pdf-tools-tw.streamlit.app)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://pdftools-tw.streamlit.app)
 
 </div>
 
