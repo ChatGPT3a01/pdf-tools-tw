@@ -189,31 +189,64 @@ def compress_image(image_data: bytes, quality: int) -> bytes:
 
 
 def compress_pdf(input_bytes: bytes, quality: str) -> Tuple[bytes, dict]:
-    """壓縮 PDF 檔案"""
+    """使用 Ghostscript 壓縮 PDF 檔案"""
+    import subprocess
+    import tempfile
+    import os
+
     original_size = len(input_bytes)
 
+    # Ghostscript 壓縮設定
+    quality_settings = {
+        "low": "/prepress",      # 高品質，較大檔案
+        "medium": "/ebook",      # 中等品質，適合螢幕閱讀
+        "high": "/screen"        # 低品質，最小檔案（72 dpi）
+    }
+    gs_quality = quality_settings.get(quality, "/ebook")
+
     try:
-        # 讀取 PDF
-        reader = PdfReader(io.BytesIO(input_bytes))
-        writer = PdfWriter()
+        # 建立暫存檔案
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as input_file:
+            input_file.write(input_bytes)
+            input_path = input_file.name
 
-        # 複製並壓縮每一頁
-        for page in reader.pages:
-            page.compress_content_streams()
-            writer.add_page(page)
+        output_path = input_path.replace('.pdf', '_compressed.pdf')
 
-        # 寫入壓縮後的 PDF
-        output = io.BytesIO()
-        writer.write(output)
-        compressed_bytes = output.getvalue()
-        compressed_size = len(compressed_bytes)
+        # 執行 Ghostscript 壓縮
+        gs_command = [
+            'gs',
+            '-sDEVICE=pdfwrite',
+            '-dCompatibilityLevel=1.4',
+            f'-dPDFSETTINGS={gs_quality}',
+            '-dNOPAUSE',
+            '-dQUIET',
+            '-dBATCH',
+            f'-sOutputFile={output_path}',
+            input_path
+        ]
 
-        # 如果壓縮後變大，返回原始檔案
-        if compressed_size >= original_size:
+        result = subprocess.run(gs_command, capture_output=True, timeout=120)
+
+        if result.returncode == 0 and os.path.exists(output_path):
+            with open(output_path, 'rb') as f:
+                compressed_bytes = f.read()
+            compressed_size = len(compressed_bytes)
+
+            # 如果壓縮後變大，返回原始檔案
+            if compressed_size >= original_size:
+                compressed_bytes = input_bytes
+                compressed_size = original_size
+        else:
             compressed_bytes = input_bytes
             compressed_size = original_size
 
-    except Exception:
+        # 清理暫存檔案
+        if os.path.exists(input_path):
+            os.remove(input_path)
+        if os.path.exists(output_path):
+            os.remove(output_path)
+
+    except Exception as e:
         compressed_bytes = input_bytes
         compressed_size = original_size
 
