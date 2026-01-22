@@ -4,7 +4,7 @@ PDF 工具箱 - 網頁版
 """
 
 import streamlit as st
-from pypdf import PdfReader, PdfWriter, PdfMerger
+from PyPDF2 import PdfReader, PdfWriter, PdfMerger
 from PIL import Image
 import io
 import zipfile
@@ -169,9 +169,6 @@ def compress_pdf(input_bytes: bytes, quality: str) -> Tuple[bytes, dict]:
     # 壓縮內容串流
     for page in writer.pages:
         page.compress_content_streams()
-
-    # 移除重複物件
-    writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
 
     output = io.BytesIO()
     writer.write(output)
