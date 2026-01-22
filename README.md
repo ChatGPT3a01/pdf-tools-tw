@@ -11,7 +11,11 @@
 
 **免費、開源、無廣告的線上 PDF 處理工具**
 
-[🚀 立即使用](https://pdf-tools-tw.streamlit.app)
+## 🚀 立即開始使用
+
+### 👉 [https://pdf-tools-tw.streamlit.app](https://pdf-tools-tw.streamlit.app) 👈
+
+**👆 點擊上方連結，免安裝直接使用！**
 
 </div>
 
@@ -136,14 +140,6 @@
 ---
 
 <div align="center">
-
-## 🚀 立即開始使用
-
-### 👉 [https://pdf-tools-tw.streamlit.app](https://pdf-tools-tw.streamlit.app) 👈
-
-**👆 點擊上方連結，免安裝直接使用！**
-
----
 
 ## ⭐ 喜歡這個專案嗎？
 
