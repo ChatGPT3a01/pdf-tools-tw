@@ -188,7 +188,7 @@ def compress_image(image_data: bytes, quality: int) -> bytes:
         return image_data
 
 
-def compress_pdf(input_bytes: bytes, quality: str) -> Tuple[bytes, dict]:
+def compress_pdf(input_bytes: bytes, quality: str, target_size_mb: float = 0) -> Tuple[bytes, dict]:
     """使用 Ghostscript 壓縮 PDF 檔案"""
     import subprocess
     import tempfile
@@ -196,57 +196,112 @@ def compress_pdf(input_bytes: bytes, quality: str) -> Tuple[bytes, dict]:
 
     original_size = len(input_bytes)
 
-    # Ghostscript 壓縮設定
+    # Ghostscript 壓縮設定（更激進的參數）
     quality_settings = {
-        "low": "/prepress",      # 高品質，較大檔案
-        "medium": "/ebook",      # 中等品質，適合螢幕閱讀
-        "high": "/screen"        # 低品質，最小檔案（72 dpi）
+        "low": {
+            "pdfsettings": "/prepress",
+            "dpi": 300,
+            "image_quality": 95
+        },
+        "medium": {
+            "pdfsettings": "/ebook",
+            "dpi": 150,
+            "image_quality": 75
+        },
+        "high": {
+            "pdfsettings": "/screen",
+            "dpi": 72,
+            "image_quality": 40
+        },
+        "extreme": {
+            "pdfsettings": "/screen",
+            "dpi": 50,
+            "image_quality": 20
+        }
     }
-    gs_quality = quality_settings.get(quality, "/ebook")
+    settings = quality_settings.get(quality, quality_settings["medium"])
 
-    try:
-        # 建立暫存檔案
+    def run_gs_compress(dpi: int, img_quality: int) -> bytes:
+        """執行 Ghostscript 壓縮"""
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as input_file:
             input_file.write(input_bytes)
             input_path = input_file.name
 
         output_path = input_path.replace('.pdf', '_compressed.pdf')
 
-        # 執行 Ghostscript 壓縮
         gs_command = [
             'gs',
             '-sDEVICE=pdfwrite',
             '-dCompatibilityLevel=1.4',
-            f'-dPDFSETTINGS={gs_quality}',
+            f'-dPDFSETTINGS={settings["pdfsettings"]}',
             '-dNOPAUSE',
             '-dQUIET',
             '-dBATCH',
+            '-dDetectDuplicateImages=true',
+            '-dCompressFonts=true',
+            '-dSubsetFonts=true',
+            f'-dColorImageResolution={dpi}',
+            f'-dGrayImageResolution={dpi}',
+            f'-dMonoImageResolution={dpi}',
+            '-dColorImageDownsampleType=/Bicubic',
+            '-dGrayImageDownsampleType=/Bicubic',
+            '-dMonoImageDownsampleType=/Bicubic',
+            '-dDownsampleColorImages=true',
+            '-dDownsampleGrayImages=true',
+            '-dDownsampleMonoImages=true',
+            f'-dJPEGQ={img_quality}',
             f'-sOutputFile={output_path}',
             input_path
         ]
 
-        result = subprocess.run(gs_command, capture_output=True, timeout=120)
+        try:
+            result = subprocess.run(gs_command, capture_output=True, timeout=180)
+            if result.returncode == 0 and os.path.exists(output_path):
+                with open(output_path, 'rb') as f:
+                    compressed = f.read()
+            else:
+                compressed = input_bytes
+        except Exception:
+            compressed = input_bytes
+        finally:
+            if os.path.exists(input_path):
+                os.remove(input_path)
+            if os.path.exists(output_path):
+                os.remove(output_path)
 
-        if result.returncode == 0 and os.path.exists(output_path):
-            with open(output_path, 'rb') as f:
-                compressed_bytes = f.read()
-            compressed_size = len(compressed_bytes)
+        return compressed
 
-            # 如果壓縮後變大，返回原始檔案
-            if compressed_size >= original_size:
-                compressed_bytes = input_bytes
-                compressed_size = original_size
+    try:
+        # 如果設定了目標大小，嘗試不同的 DPI 找到最佳壓縮
+        if target_size_mb > 0:
+            target_bytes = int(target_size_mb * 1024 * 1024)
+            best_result = input_bytes
+
+            # 嘗試不同的 DPI 值
+            for dpi in [150, 100, 72, 50, 36, 24]:
+                for img_q in [60, 40, 20, 10]:
+                    compressed = run_gs_compress(dpi, img_q)
+                    if len(compressed) <= target_bytes:
+                        best_result = compressed
+                        break
+                    elif len(compressed) < len(best_result):
+                        best_result = compressed
+                if len(best_result) <= target_bytes:
+                    break
+
+            compressed_bytes = best_result
         else:
+            # 使用預設設定壓縮
+            compressed_bytes = run_gs_compress(settings["dpi"], settings["image_quality"])
+
+        compressed_size = len(compressed_bytes)
+
+        # 如果壓縮後變大，返回原始檔案
+        if compressed_size >= original_size:
             compressed_bytes = input_bytes
             compressed_size = original_size
 
-        # 清理暫存檔案
-        if os.path.exists(input_path):
-            os.remove(input_path)
-        if os.path.exists(output_path):
-            os.remove(output_path)
-
-    except Exception as e:
+    except Exception:
         compressed_bytes = input_bytes
         compressed_size = original_size
 
@@ -338,42 +393,110 @@ def create_zip(files: List[Tuple[str, bytes]]) -> bytes:
 def main_app():
     """主應用程式"""
 
-    # 自訂 CSS 樣式
-    st.markdown("""
+    # 讀取啟動畫面圖片
+    splash_image_path = Path("assets/splash.png")
+    if splash_image_path.exists():
+        img_base64 = get_image_base64(str(splash_image_path))
+    else:
+        img_base64 = ""
+
+    # 自訂 CSS 樣式 + 啟動畫面
+    st.markdown(f"""
     <style>
-        .title-container {
+        /* 啟動畫面樣式 */
+        .splash-overlay {{
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-image: url('data:image/png;base64,{img_base64}');
+            background-size: cover;
+            background-position: center;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            z-index: 99999;
+            animation: fadeOut 0.5s ease-out 4s forwards;
+        }}
+        .splash-progress {{
+            width: 60%;
+            max-width: 400px;
+            margin-bottom: 80px;
+        }}
+        .splash-progress-bg {{
+            background: rgba(255,255,255,0.5);
+            border-radius: 10px;
+            height: 10px;
+            overflow: hidden;
+        }}
+        .splash-progress-bar {{
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            height: 100%;
+            border-radius: 10px;
+            animation: loading 3.5s ease-out forwards;
+        }}
+        .splash-text {{
+            color: #555;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            font-family: "Microsoft JhengHei", sans-serif;
+        }}
+        @keyframes loading {{
+            0% {{ width: 0%; }}
+            100% {{ width: 100%; }}
+        }}
+        @keyframes fadeOut {{
+            0% {{ opacity: 1; pointer-events: all; }}
+            100% {{ opacity: 0; pointer-events: none; visibility: hidden; }}
+        }}
+
+        /* 主頁面樣式 */
+        .title-container {{
             text-align: center;
             position: relative;
-        }
-        .brand-text {
+        }}
+        .brand-text {{
             position: absolute;
             top: 0;
             left: 0;
             font-size: 0.85rem;
             color: #8B7355;
             font-family: "Microsoft JhengHei", "PingFang TC", serif;
-        }
-        .main-title {
+        }}
+        .main-title {{
             text-align: center;
             color: #5D4E37;
             margin-bottom: 0.5rem;
             font-family: "Microsoft JhengHei", "PingFang TC", serif;
-        }
-        .sub-title {
+        }}
+        .sub-title {{
             text-align: center;
             color: #8B7355;
             font-size: 1.1rem;
             margin-bottom: 2rem;
             font-family: "Microsoft JhengHei", "PingFang TC", serif;
-        }
-        .stTabs [data-baseweb="tab-list"] {
+        }}
+        .stTabs [data-baseweb="tab-list"] {{
             gap: 8px;
-        }
-        .stTabs [data-baseweb="tab"] {
+        }}
+        .stTabs [data-baseweb="tab"] {{
             padding: 10px 20px;
             font-size: 1rem;
-        }
+        }}
     </style>
+
+    <!-- 啟動畫面 -->
+    <div class="splash-overlay" id="splash-screen">
+        <div class="splash-progress">
+            <div class="splash-progress-bg">
+                <div class="splash-progress-bar"></div>
+            </div>
+            <p class="splash-text">載入中...</p>
+        </div>
+    </div>
     """, unsafe_allow_html=True)
 
     # 主標題區塊（含左上角品牌文字）
@@ -391,7 +514,7 @@ def main_app():
     # ===== 壓縮功能 =====
     with tab1:
         st.markdown("### 壓縮 PDF 檔案")
-        st.markdown("上傳 PDF 檔案，減少檔案大小以便分享或儲存。")
+        st.markdown("上傳 PDF 檔案，減少檔案大小以便分享或儲存。使用 Ghostscript 專業壓縮引擎。")
 
         uploaded_file = st.file_uploader(
             "選擇要壓縮的 PDF 檔案",
@@ -401,26 +524,41 @@ def main_app():
 
         quality = st.radio(
             "選擇壓縮程度：",
-            options=["low", "medium", "high"],
+            options=["low", "medium", "high", "extreme"],
             format_func=lambda x: {
-                "low": "低度壓縮（較大檔案，較高品質）",
-                "medium": "中度壓縮（平衡檔案大小與品質）",
-                "high": "高度壓縮（目標 4MB 以下，適合上傳作業）"
+                "low": "🟢 低度壓縮（300 DPI，高品質列印）",
+                "medium": "🟡 中度壓縮（150 DPI，螢幕閱讀）",
+                "high": "🔴 高度壓縮（72 DPI，最小檔案）",
+                "extreme": "⚫ 極限壓縮（50 DPI，極低品質）"
             }[x],
-            index=1,
+            index=2,
             key="compress_quality"
         )
 
-        if quality == "high":
-            st.info("💡 高度壓縮會大幅降低圖片品質，並嘗試將檔案壓縮至 4MB 以下。適合需要上傳作業或限制檔案大小的情況。")
+        # 目標大小選項
+        use_target_size = st.checkbox("設定目標檔案大小", key="use_target_size")
+        target_size_mb = 0.0
+        if use_target_size:
+            target_size_mb = st.slider(
+                "目標大小 (MB)",
+                min_value=0.5,
+                max_value=10.0,
+                value=4.0,
+                step=0.5,
+                key="target_size"
+            )
+            st.info(f"💡 將自動嘗試不同參數，找到最接近 {target_size_mb} MB 的壓縮結果（處理時間較長）")
+
+        if quality == "extreme":
+            st.warning("⚠️ 極限壓縮會大幅降低圖片品質，文字可能模糊。僅建議用於需要極小檔案的情況。")
 
         if uploaded_file is not None:
             st.markdown(f"**已上傳：** {uploaded_file.name} ({format_size(uploaded_file.size)})")
 
             if st.button("開始壓縮", key="compress_btn", type="primary"):
-                with st.spinner("正在壓縮中，請稍候..."):
+                with st.spinner("正在壓縮中，請稍候...（大型檔案可能需要 1-2 分鐘）"):
                     try:
-                        compressed_bytes, stats = compress_pdf(uploaded_file.getvalue(), quality)
+                        compressed_bytes, stats = compress_pdf(uploaded_file.getvalue(), quality, target_size_mb)
 
                         st.success("壓縮完成！")
 
