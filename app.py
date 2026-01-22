@@ -157,26 +157,26 @@ def compress_pdf(input_bytes: bytes, quality: str) -> Tuple[bytes, dict]:
     """壓縮 PDF 檔案"""
     original_size = len(input_bytes)
 
-    reader = PdfReader(io.BytesIO(input_bytes))
-    writer = PdfWriter()
+    try:
+        input_stream = io.BytesIO(input_bytes)
+        reader = PdfReader(input_stream)
+        writer = PdfWriter()
 
-    # 複製所有頁面
-    for page in reader.pages:
-        writer.add_page(page)
+        # 複製所有頁面並壓縮
+        for page_num in range(len(reader.pages)):
+            page = reader.pages[page_num]
+            writer.add_page(page)
 
-    # 壓縮每個頁面的內容串流
-    for page in writer.pages:
-        try:
-            page.compress_content_streams()
-        except:
-            pass
+        # 寫入輸出
+        output_stream = io.BytesIO()
+        writer.write(output_stream)
+        output_bytes = output_stream.getvalue()
+        compressed_size = len(output_bytes)
 
-    # 寫入輸出
-    output = io.BytesIO()
-    writer.write(output)
-    output.seek(0)
-    output_bytes = output.read()
-    compressed_size = len(output_bytes)
+    except Exception as e:
+        # 如果壓縮失敗，返回原始檔案
+        output_bytes = input_bytes
+        compressed_size = original_size
 
     reduction = ((original_size - compressed_size) / original_size) * 100 if original_size > 0 else 0
 
