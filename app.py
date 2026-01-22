@@ -269,14 +269,17 @@ def main_app():
     # 自訂 CSS 樣式
     st.markdown("""
     <style>
+        .title-container {
+            text-align: center;
+            position: relative;
+        }
         .brand-text {
-            position: fixed;
-            top: 60px;
-            left: 20px;
-            font-size: 0.9rem;
+            position: absolute;
+            top: 0;
+            left: 0;
+            font-size: 0.85rem;
             color: #8B7355;
             font-family: "Microsoft JhengHei", "PingFang TC", serif;
-            z-index: 1000;
         }
         .main-title {
             text-align: center;
@@ -301,11 +304,13 @@ def main_app():
     </style>
     """, unsafe_allow_html=True)
 
-    # 左上方品牌文字
-    st.markdown('<div class="brand-text">亮言~</div>', unsafe_allow_html=True)
-
-    # 主標題
-    st.markdown('<h1 class="main-title">雲卷雲舒 · PDF 全能匠心</h1>', unsafe_allow_html=True)
+    # 主標題區塊（含左上角品牌文字）
+    st.markdown('''
+    <div class="title-container">
+        <span class="brand-text">亮言~</span>
+        <h1 class="main-title">雲卷雲舒 · PDF 全能匠心</h1>
+    </div>
+    ''', unsafe_allow_html=True)
     st.markdown('<p class="sub-title">化繁為簡凝雲墨，拆骨離魂鑄新篇</p>', unsafe_allow_html=True)
 
     # 建立分頁
